@@ -13,6 +13,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/yetone/magpie/internal/catalog"
+	"github.com/yetone/magpie/internal/codexcat"
 )
 
 // fakeOpenAI stands in for auth.openai.com and api.openai.com, as Sign in
@@ -477,5 +480,39 @@ func TestChatGPTAPIUsageSaysWhere(t *testing.T) {
 	}
 	if len(f.forms) != n {
 		t.Errorf("OpenAI was asked %d times for it", len(f.forms)-n)
+	}
+}
+
+func TestSIWCModelServiceTiers(t *testing.T) {
+	models, _ := parseSIWCModels([]byte(`{"models":[{"slug":"alpha","visibility":"list","service_tiers":[{"id":"priority"},{"id":"ultrafast"}]},{"slug":"beta","visibility":"list"}]}`))
+	if len(models) != 2 || strings.Join(models[0].Tiers, ",") != "priority,ultrafast" || len(models[1].Tiers) != 0 {
+		t.Fatalf("unexpected tiers: %#v", models)
+	}
+	account := siwcProvider(Login{User: "test"})
+	for _, model := range models {
+		entry := Entry{ID: account.ID + "/" + model.ID, Model: model.ID, Provider: &account, Tiers: model.Tiers}
+		listed := catalog.Model{ID: entry.ID}
+		CodexTiersWith(&listed, entry, nil, func() map[string]bool { return nil })
+		published := codexcat.ServiceTiers([]catalog.Model{listed})[entry.ID]
+		if len(published) != len(model.Tiers) {
+			t.Fatalf("%s: expected %v, published %v", entry.ID, model.Tiers, published)
+		}
+		for i, tier := range published {
+			if tier.ID != model.Tiers[i] {
+				t.Fatalf("%s: expected %v, published %v", entry.ID, model.Tiers, published)
+			}
+		}
+	}
+	for _, tier := range models[0].Tiers {
+		body, err := json.Marshal(map[string]string{"model": "alpha", "service_tier": tier})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wire struct {
+			Tier string `json:"service_tier"`
+		}
+		if err := json.Unmarshal(siwcBody(body), &wire); err != nil || wire.Tier != tier {
+			t.Fatalf("signed-in request for %s: wire tier %q, err %v", tier, wire.Tier, err)
+		}
 	}
 }
