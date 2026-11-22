@@ -542,6 +542,7 @@ func siwcWithCodex(ms []catalog.Model, hidden []string) []catalog.Model {
 		if m.ID == "" || strings.Contains(m.ID, "/") || slices.Contains(hidden, m.ID) || slices.ContainsFunc(ms, func(o catalog.Model) bool { return o.ID == m.ID }) {
 			continue
 		}
+		m.Tiers = nil // This supplemental model was not advertised by the signed-in account.
 		m.Provider, m.APIs = "openai", []string{string(Responses)}
 		ms = append(ms, m)
 	}
@@ -557,7 +558,10 @@ func parseSIWCModels(b []byte) (out []catalog.Model, hidden []string) {
 			DisplayName string   `json:"display_name"`
 			Visibility  string   `json:"visibility"`
 			Input       []string `json:"input_modalities"`
-			Levels      []struct {
+			Tiers       []struct {
+				ID string `json:"id"`
+			} `json:"service_tiers"`
+			Levels []struct {
 				Effort string `json:"effort"`
 			} `json:"supported_reasoning_levels"`
 			Context int `json:"context_window"`
@@ -576,6 +580,11 @@ func parseSIWCModels(b []byte) (out []catalog.Model, hidden []string) {
 			continue
 		}
 		mm := catalog.Model{ID: m.Slug, Name: m.DisplayName, Provider: "openai", Context: m.Context, APIs: []string{string(Responses)}}
+		for _, tier := range m.Tiers {
+			if tier.ID != "" && !slices.Contains(mm.Tiers, tier.ID) {
+				mm.Tiers = append(mm.Tiers, tier.ID)
+			}
+		}
 		if m.Max > m.Context {
 			mm.MaxContext = m.Max
 		}

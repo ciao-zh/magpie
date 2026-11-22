@@ -1136,7 +1136,7 @@ func CodexTiersWith(m *catalog.Model, e Entry, members func(id string) []Member,
 	// model, and is sent the one Codex asks for as it is (#1234); a
 	// provider plugin, those it says its vendor serves the model at, and
 	// is sent the one Codex asks for when it is among them (#2514)
-	if e.Group == "" && (e.Provider.IsRemoteMagpie() || e.Provider.IsPlugin() && len(e.Tiers) > 0) {
+	if e.Group == "" && (e.Provider.ID == ChatGPTAPIID || e.Provider.IsRemoteMagpie() || e.Provider.IsPlugin() && len(e.Tiers) > 0) {
 		m.Tiers = e.Tiers
 	}
 	if e.Group != "" {
